@@ -123,7 +123,20 @@ export default function Releases() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div style={{ padding: '24px 28px', maxWidth: '1400px', margin: '0 auto' }}>
+        <style>{`
+          .card { background: rgba(255, 255, 255, 0.95); border: 1px solid rgba(148, 163, 184, 0.35); backdrop-filter: blur(6px); color: #1f2937; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+          .card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+          .status-pill { font-size: 11px; font-weight: 700; letter-spacing: 0.03em; }
+          .input-primary { background: white; border: 1px solid #cbd5e1; color: #1e293b; transition: all 0.2s; }
+          .input-primary:focus { border-color: #6366f1; outline: none; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
+        `}</style>
+
+        <div className="mb-6">
+          <p className="text-sm text-slate-500 font-medium">
+            Track milestones, view linked issues, and manage release workflow with quick actions.
+          </p>
+        </div>
         <style>{`
           .card { background: rgba(255, 255, 255, 0.95); border: 1px solid rgba(148, 163, 184, 0.35); backdrop-filter: blur(6px); color: #1f2937; }
           .card:hover { transform: translateY(-2px); }
@@ -152,7 +165,7 @@ export default function Releases() {
           </div>
         </div>
 
-        <div className="p-4 rounded-xl card mb-6 transition-transform duration-200" style={{ background: 'transparent' }}>
+        <div className="p-6 rounded-2xl card mb-8 transition-all duration-200">
           <h2 className="text-sm font-semibold mb-2 text-slate-900">Create New Release</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <select

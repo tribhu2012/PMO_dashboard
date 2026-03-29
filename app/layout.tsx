@@ -32,8 +32,8 @@ export default function RootLayout({
               justifyContent: 'center',
               width: '100%',
               height: '80px',
-              background: '#ffffff',
-              borderBottom: '1px solid #e2e8f0',
+              background: '#0f172a',
+              borderBottom: '1px solid #1e293b',
               marginBottom: '16px',
               textDecoration: 'none',
               overflow: 'hidden',
@@ -46,7 +46,8 @@ export default function RootLayout({
                   height: '36px',
                   width: 'auto',
                   objectFit: 'contain',
-                  display: 'block'
+                  display: 'block',
+                  filter: 'brightness(0) invert(1)'
                 }}
               />
             </Link>
