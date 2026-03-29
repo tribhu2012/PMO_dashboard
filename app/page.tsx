@@ -66,13 +66,58 @@ export default function Dashboard() {
     setSyncing(false);
   };
 
+  // Derived filtered issues based on product selection
+  const filteredIssues = useMemo(() => {
+    if (!data?.issues) return [];
+    return product === 'all'
+      ? data.issues
+      : data.issues.filter((i: any) => i.product_id === product);
+  }, [data, product]);
+
+  const overviewMetrics = useMemo(() => {
+    if (!data) return null;
+
+    const pmilestones = product === 'all' ? data.milestones || [] : data.milestones?.filter((m: any) => m.product_id === product) || [];
+
+    const active_milestones = pmilestones.filter((m: any) => m.status === 'active').length;
+    const open_tickets = filteredIssues.filter((i: any) => i.status === 'open' || i.status === 'blocked').length;
+    const blocked_tickets = filteredIssues.filter((i: any) => i.status === 'blocked').length;
+    const avg_progress = pmilestones.length > 0
+      ? Math.round(pmilestones.reduce((acc: number, m: any) => acc + (m.progress || 0), 0) / pmilestones.length)
+      : 0;
+
+    const assignedMembers = new Set(filteredIssues.map((i: any) => i.assignee).filter(Boolean));
+    const team_members = product === 'all' ? (data.workload?.length ?? 0) : assignedMembers.size;
+
+    const pteam = data.workload?.map((w: any) => {
+      const assigned = filteredIssues.filter((i: any) => i.assignee === w.github_username && i.status !== 'closed');
+      const load = Math.min(100, Math.round((assigned.length / 5) * 100));
+      return { ...w, load_pct: load };
+    }) || [];
+    const overloaded_members = pteam.filter((m: any) => m.load_pct >= 80).length;
+
+    return {
+      active_milestones,
+      active_releases: active_milestones,
+      open_tickets,
+      blocked_tickets,
+      avg_progress,
+      team_members,
+      overloaded_members,
+    };
+  }, [data, product, filteredIssues]);
+
   // All milestones sorted newest first
   const sortedMilestones = useMemo(() => {
     if (!data?.milestones) return [];
-    return [...data.milestones].sort((a: any, b: any) =>
+    let ms = data.milestones;
+    if (product !== 'all') {
+      ms = ms.filter((m: any) => m.product_id === product);
+    }
+    return [...ms].sort((a: any, b: any) =>
       new Date(b.due_on || b.created_at).getTime() - new Date(a.due_on || a.created_at).getTime()
     );
-  }, [data]);
+  }, [data, product]);
 
   // Active milestone for burndown — use selected or default to most recent
   const activeMilestone = useMemo(() => {
@@ -83,7 +128,7 @@ export default function Dashboard() {
 
   const burndownData = useMemo(() => {
     if (!activeMilestone || !data?.issues) return null;
-    const issues = data.issues.filter((i: any) => i.milestone_id === activeMilestone.id);
+    const issues = filteredIssues.filter((i: any) => i.milestone_id === activeMilestone.id);
     if (!issues.length) return null;
     const start = activeMilestone.start_date || activeMilestone.created_at || issues[0].created_at;
     const end = activeMilestone.due_on || new Date().toISOString().slice(0, 10);
@@ -112,7 +157,7 @@ export default function Dashboard() {
   const milestoneStatusData = useMemo(() => {
     if (!data?.milestones || !data?.issues) return null;
     const selected = sortedMilestones.slice(0, milestoneCount).reverse();
-    const statuses: string[] = Array.from(new Set(data.issues.map((i: any) => i.status)));
+    const statuses: string[] = Array.from(new Set(filteredIssues.map((i: any) => i.status)));
     const statusColors: Record<string, string> = {
       open: ACCENT, blocked: DANGER, closed: ACCENT2, 'in progress': WARN,
     };
@@ -121,7 +166,7 @@ export default function Dashboard() {
       datasets: statuses.map((status: string) => ({
         label: status,
         data: selected.map((m: any) =>
-          data.issues.filter((i: any) => i.milestone_id === m.id && i.status === status).length
+          filteredIssues.filter((i: any) => i.milestone_id === m.id && i.status === status).length
         ),
         backgroundColor: statusColors[status] || '#888',
         borderRadius: 6,
@@ -133,16 +178,16 @@ export default function Dashboard() {
   const issuesByStatus = useMemo(() => {
     if (!data?.issues) return { labels: [], counts: [] };
     const counts: Record<string, number> = {};
-    data.issues.forEach((i: any) => { counts[i.status] = (counts[i.status] || 0) + 1; });
+    filteredIssues.forEach((i: any) => { counts[i.status] = (counts[i.status] || 0) + 1; });
     return { labels: Object.keys(counts), counts: Object.values(counts) as number[] };
-  }, [data]);
+  }, [data, filteredIssues]);
 
   const issuesByProduct = useMemo(() => {
     if (!data?.issues || !data?.products) return { labels: [], counts: [], colors: [] };
     const counts: Record<string, number> = {};
     const colorMap: Record<string, string> = {};
     const palette = [ACCENT, ACCENT2, DANGER, WARN, '#FF6B9D', '#A78BFA', '#38BDF8', '#FB923C'];
-    data.issues.forEach((i: any) => {
+    filteredIssues.forEach((i: any) => {
       const prod = data.products.find((p: any) => p.id === i.product_id);
       const name = prod?.name || 'Unknown';
       counts[name] = (counts[name] || 0) + 1;
@@ -176,22 +221,22 @@ export default function Dashboard() {
 
   const metrics = [
     {
-      label: 'Active releases', value: data.metrics?.active_releases ?? data.metrics?.active_milestones ?? 0,
+      label: 'Active releases', value: overviewMetrics?.active_releases ?? overviewMetrics?.active_milestones ?? 0,
       suffix: '', color: ACCENT, bg: 'rgba(108,99,255,0.08)',
       icon: <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M10 2L12.5 7.5H18L13.5 11L15.5 17L10 13.5L4.5 17L6.5 11L2 7.5H7.5L10 2Z" stroke={ACCENT} strokeWidth="1.5" strokeLinejoin="round" /></svg>,
     },
     {
-      label: 'Open issues', value: data.metrics?.open_tickets ?? 0,
-      suffix: '', sub: `${data.metrics?.blocked_tickets ?? 0} blocked`, color: WARN, bg: 'rgba(255,165,2,0.08)',
+      label: 'Open issues', value: overviewMetrics?.open_tickets ?? 0,
+      suffix: '', sub: `${overviewMetrics?.blocked_tickets ?? 0} blocked`, color: WARN, bg: 'rgba(255,165,2,0.08)',
       icon: <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke={WARN} strokeWidth="1.5" /><path d="M10 6v5M10 13v1" stroke={WARN} strokeWidth="1.5" strokeLinecap="round" /></svg>,
     },
     {
-      label: 'Team members', value: data.workload?.length ?? 0,
-      suffix: '', sub: `${data.metrics?.overloaded_members ?? 0} overloaded`, color: ACCENT2, bg: 'rgba(0,212,170,0.08)',
+      label: 'Team members', value: overviewMetrics?.team_members ?? data.workload?.length ?? 0,
+      suffix: '', sub: `${overviewMetrics?.overloaded_members ?? 0} overloaded`, color: ACCENT2, bg: 'rgba(0,212,170,0.08)',
       icon: <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="8" cy="7" r="3" stroke={ACCENT2} strokeWidth="1.5" /><circle cx="14" cy="7" r="2" stroke={ACCENT2} strokeWidth="1.5" /><path d="M2 17c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke={ACCENT2} strokeWidth="1.5" strokeLinecap="round" /><path d="M14 11c1.7.5 3 2.1 3 4" stroke={ACCENT2} strokeWidth="1.5" strokeLinecap="round" /></svg>,
     },
     {
-      label: 'Avg progress', value: data.metrics?.avg_progress ?? 0,
+      label: 'Avg progress', value: overviewMetrics?.avg_progress ?? 0,
       suffix: '%', color: '#FF6B9D', bg: 'rgba(255,107,157,0.08)',
       icon: <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M3 14l4-4 3 3 4-5 3 3" stroke="#FF6B9D" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>,
     },
@@ -233,42 +278,22 @@ export default function Dashboard() {
       {/* ── TOPBAR ── */}
       <div ref={headerRef} style={{
         position: 'sticky', top: 0, zIndex: 100,
-        background: 'rgba(248,250,252,0.92)',
-        backdropFilter: 'blur(16px)',
-        borderBottom: '1px solid #e2e8f0',
+        background: '#0f172a',
+        borderBottom: '1px solid #1e293b',
         padding: '0 28px',
         display: 'flex', alignItems: 'center', height: '58px', gap: '8px',
       }}>
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginRight: '16px' }}>
-          <div style={{ width: '26px', height: '26px', borderRadius: '7px', background: `linear-gradient(135deg, ${ACCENT}, #8B5CF6)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 1L9 5.5H14L10 8.5L11.5 13L7 10L2.5 13L4 8.5L0 5.5H5L7 1Z" fill="white" /></svg>
-          </div>
-          <span style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b', letterSpacing: '-0.02em' }}>ProjectOS</span>
-        </div>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: '2px', flex: 1 }}>
-          {(['overview', 'releases', 'team'] as const).map(tab => (
-            <button key={tab} className={`tab ${activeTab === tab ? 'tab-active' : 'tab-inactive'}`} onClick={() => setActiveTab(tab)}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
+        {/* LEFT SIDE — Title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h1 style={{ fontSize: '18px', fontWeight: 600, color: '#ffffff', letterSpacing: '-0.025em' }}>
+            Project Management Dashboard
+          </h1>
         </div>
 
         {/* RIGHT SIDE — search + product filter + sync */}
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto' }}>
-          {/* Search */}
-          <div style={{ position: 'relative' }}>
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }}>
-              <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.3" />
-              <path d="M10 10l2.5 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-            </svg>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search releases..." style={{
-              background: 'white', border: '1px solid #e2e8f0', borderRadius: '9px',
-              color: '#1e293b', fontSize: '12px', padding: '7px 12px 7px 28px', width: '170px',
-            }} />
-          </div>
+
 
           {/* Product filter */}
           <select value={product} onChange={e => setProduct(e.target.value)} style={{
@@ -507,9 +532,13 @@ export default function Dashboard() {
                         }}
                         options={{
                           responsive: true, maintainAspectRatio: false,
-                          plugins: { legend: { display: false }, tooltip: { callbacks: {
-                            label: (ctx: any) => ` ${ctx.label}: ${ctx.parsed} issues (${totalIssues > 0 ? Math.round((ctx.parsed / totalIssues) * 100) : 0}%)`
-                          }}},
+                          plugins: {
+                            legend: { display: false }, tooltip: {
+                              callbacks: {
+                                label: (ctx: any) => ` ${ctx.label}: ${ctx.parsed} issues (${totalIssues > 0 ? Math.round((ctx.parsed / totalIssues) * 100) : 0}%)`
+                              }
+                            }
+                          },
                           cutout: '62%',
                         }}
                         height={160}

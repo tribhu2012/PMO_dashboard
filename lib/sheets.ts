@@ -43,3 +43,24 @@ export async function updateRow(
     requestBody: { values: [values] },
   });
 }
+
+export async function appendRows(tabName: string, values: string[][]) {
+  if (!values.length) return;
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: tabName,
+    valueInputOption: 'RAW',
+    requestBody: { values },
+  });
+}
+
+export async function batchUpdateRows(data: { range: string; values: any[][] }[]) {
+  if (!data.length) return;
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SPREADSHEET_ID,
+    requestBody: {
+      valueInputOption: 'RAW',
+      data,
+    },
+  });
+}

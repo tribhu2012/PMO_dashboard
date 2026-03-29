@@ -97,23 +97,42 @@ export default function Workload() {
     : [];
 
   return (
-    <div className="p-6">
-      <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Team workload</h1>
-          <p className="text-sm text-slate-500">Click rows to expand detail directly beneath each assignee.</p>
+    <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white text-slate-900">
+      {/* ── TOPBAR ── */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 100,
+        background: '#0f172a',
+        borderBottom: '1px solid #1e293b',
+        padding: '0 28px',
+        display: 'flex', alignItems: 'center', height: '58px', gap: '8px',
+      }}>
+        {/* LEFT SIDE — Title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h1 style={{ fontSize: '18px', fontWeight: 600, color: '#ffffff', letterSpacing: '-0.025em' }}>
+            Team workload
+          </h1>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+
+        {/* RIGHT SIDE — search + filters */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto' }}>
           <input
             value={assigneeSearch}
             onChange={(e) => setAssigneeSearch(e.target.value)}
             placeholder="Search assignee..."
-            className="w-52 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+            style={{
+              background: '#1e293b', border: '1px solid #334155', borderRadius: '9px',
+              color: 'white', fontSize: '12px', padding: '7px 12px', outline: 'none',
+              width: '160px'
+            }}
           />
           <select
             value={assigneeFilter}
             onChange={(e) => setAssigneeFilter(e.target.value as any)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+            style={{
+              background: 'white', border: '1px solid #e2e8f0', borderRadius: '9px',
+              color: '#1e293b', fontSize: '12px', padding: '7px 12px', cursor: 'pointer',
+              fontWeight: 500,
+            }}
           >
             <option value="all">All workload</option>
             <option value="overloaded">Overloaded</option>
@@ -123,7 +142,11 @@ export default function Workload() {
           <select
             value={selectedProduct}
             onChange={(e) => setSelectedProduct(e.target.value)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+            style={{
+              background: 'white', border: '1px solid #e2e8f0', borderRadius: '9px',
+              color: '#1e293b', fontSize: '12px', padding: '7px 12px', cursor: 'pointer',
+              fontWeight: 500,
+            }}
           >
             <option value="all">All products</option>
             {data?.products?.map((p: any) => (
@@ -132,6 +155,8 @@ export default function Workload() {
           </select>
         </div>
       </div>
+
+      <div className="p-8">
 
       <div className="mb-4 grid gap-3 sm:grid-cols-4">
         <div className="rounded-xl bg-white p-4 shadow-sm">
@@ -277,7 +302,7 @@ export default function Workload() {
           </tbody>
         </table>
       </div>
-
+    </div>
     </div>
   );
 }

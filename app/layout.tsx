@@ -23,33 +23,32 @@ export default function RootLayout({
             borderRight: '1px solid #1e293b',
             display: 'flex',
             flexDirection: 'column',
-            padding: '20px 0',
+            padding: '0',
             flexShrink: 0,
           }}>
             <Link href="/" style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
-              padding: '0 18px 16px',
-              borderBottom: '1px solid #1e293b',
-              marginBottom: '12px',
+              justifyContent: 'center',
+              width: '100%',
+              height: '80px',
+              background: '#ffffff',
+              borderBottom: '1px solid #e2e8f0',
+              marginBottom: '16px',
               textDecoration: 'none',
-              color: '#f8fafc',
+              overflow: 'hidden',
+              position: 'relative'
             }}>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '8px',
-                background: '#0f172a',
-                overflow: 'hidden',
-                position: 'relative',
-              }}>
-                <Image src="/citytech-logo.png" alt="Citytech" fill sizes="36px" style={{ objectFit: 'cover' }} />
-              </div>
-              <div>
-                <div style={{ fontSize: '16px', fontWeight: 700 }}>Citytech</div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', letterSpacing: '0.02em' }}>PM Dashboard</div>
-              </div>
+              <img
+                src="/citytech-logo.png"
+                alt="Citytech"
+                style={{
+                  height: '36px',
+                  width: 'auto',
+                  objectFit: 'contain',
+                  display: 'block'
+                }}
+              />
             </Link>
 
             {[
@@ -57,7 +56,6 @@ export default function RootLayout({
               { href: '/releases', label: 'Releases' },
               { href: '/issues', label: 'Issues' },
               { href: '/workload', label: 'Team workload' },
-              { href: '/reports', label: 'Reports' },
               { href: '/notifications', label: 'Notifications' },
             ].map(item => (
               <Link key={item.href} href={item.href} style={{

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSheet, appendRow, updateRow } from '@/lib/sheets';
+import { getSheet, appendRows, batchUpdateRows } from '@/lib/sheets';
 import { getRepoIssues, getRepoMilestones } from '@/lib/github';
 import { sendChatAlert } from '@/lib/chat';
 
@@ -9,20 +9,21 @@ export async function POST() {
   const existingIssues = await getSheet('issues');
 
   // First pass: fetch and sync milestones from all repos
+  const newMilestones: any[][] = [];
   for (const product of products) {
     const repos = product.github_repos.split(',');
     for (const repo of repos) {
       const ghMilestones = await getRepoMilestones(product.github_owner, repo.trim(), 'all');
       
       for (const milestone of ghMilestones) {
-        const existingMilestone = milestones.find(m => m.github_id === String(milestone.id) && m.product_id === product.id);
+        const existingMilestone = milestones.find((m: any) => m.github_id === String(milestone.id) && m.product_id === product.id);
         
         if (!existingMilestone) {
           // Create new milestone row
           const now = new Date().toISOString();
           const milestoneId = `milestone_${milestone.id}`;
           
-          await appendRow('milestones', [
+          newMilestones.push([
             milestoneId,
             product.id,
             milestone.title,
@@ -48,14 +49,22 @@ export async function POST() {
     }
   }
 
+  if (newMilestones.length > 0) {
+    await appendRows('milestones', newMilestones);
+  }
+
   // Second pass: sync issues and link to milestones
+  const newIssues: any[][] = [];
+  const updatedIssuesData: { range: string; values: any[][] }[] = [];
+  const alertPromises: Promise<any>[] = [];
+
   for (const product of products) {
     const repos = product.github_repos.split(',');
     for (const repo of repos) {
       const ghIssues = await getRepoIssues(product.github_owner, repo.trim());
 
       for (const issue of ghIssues) {
-        const existing = existingIssues.find(i => i.github_id === String(issue.id));
+        const existing = existingIssues.find((i: any) => i.github_id === String(issue.id));
         const status = issue.state === 'closed' ? 'closed' :
           issue.labels.some((l: any) => l.name === 'blocked') ? 'blocked' : 'open';
         const assignee = issue.assignee?.login || '';
@@ -66,7 +75,7 @@ export async function POST() {
         let milestoneId = '';
         const issueMilestoneId = issue.milestone?.id;
         if (issueMilestoneId != null) {
-          const linkedMilestone = milestones.find(m => m.github_id === String(issueMilestoneId));
+          const linkedMilestone = milestones.find((m: any) => m.github_id === String(issueMilestoneId));
           milestoneId = linkedMilestone?.id || '';
         }
 
@@ -85,23 +94,26 @@ export async function POST() {
         ];
 
         if (!existing) {
-          await appendRow('issues', values);
+          newIssues.push(values);
           if (status === 'blocked') {
-            await sendChatAlert(
+            alertPromises.push(sendChatAlert(
               `Issue #${issue.number} "${issue.title}" is blocked in ${product.name}`,
               'blocker'
-            );
+            ).catch(e => console.error('Alert error:', e)));
           }
         } else {
           // update status if changed
           if (existing.status !== status) {
             const rowIndex = existingIssues.indexOf(existing) + 2;
-            await updateRow('issues', rowIndex, values);
+            updatedIssuesData.push({
+              range: `issues!A${rowIndex}`,
+              values: [values]
+            });
             if (status === 'blocked') {
-              await sendChatAlert(
+              alertPromises.push(sendChatAlert(
                 `Issue #${issue.number} "${issue.title}" became blocked in ${product.name}`,
                 'blocker'
-              );
+              ).catch(e => console.error('Alert error:', e)));
             }
           }
         }
@@ -109,20 +121,37 @@ export async function POST() {
     }
   }
 
+  if (newIssues.length > 0) {
+    await appendRows('issues', newIssues);
+  }
+  if (updatedIssuesData.length > 0) {
+    await batchUpdateRows(updatedIssuesData);
+  }
+  await Promise.all(alertPromises);
+
   // Update milestone statuses based on issue completion
   const updatedIssues = await getSheet('issues');
+  const updatedMilestonesData: { range: string; values: any[][] }[] = [];
+  
   for (let i = 0; i < milestones.length; i++) {
     const milestone = milestones[i];
-    const milestoneIssues = updatedIssues.filter(iss => iss.milestone_id === milestone.id);
-    const allClosed = milestoneIssues.length > 0 && milestoneIssues.every(iss => iss.status === 'closed');
+    const milestoneIssues = updatedIssues.filter((iss: any) => iss.milestone_id === milestone.id);
+    const allClosed = milestoneIssues.length > 0 && milestoneIssues.every((iss: any) => iss.status === 'closed');
     const newStatus = allClosed ? 'completed' : 'active';
     
     if (milestone.status !== newStatus) {
       const rowIndex = i + 2;
       const updatedMilestone = Object.values(milestone);
       updatedMilestone[4] = newStatus;
-      await updateRow('milestones', rowIndex, updatedMilestone as string[]);
+      updatedMilestonesData.push({
+        range: `milestones!A${rowIndex}`,
+        values: [updatedMilestone as string[]]
+      });
     }
+  }
+
+  if (updatedMilestonesData.length > 0) {
+    await batchUpdateRows(updatedMilestonesData);
   }
 
   return NextResponse.json({ success: true });
