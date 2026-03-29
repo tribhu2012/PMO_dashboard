@@ -15,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
+        <div style={{ display: 'flex', minHeight: '100vh', background: 'linear-gradient(to bottom, #eef2ff, #ffffff)' }}>
           <aside style={{
             width: '220px',
             background: '#0f172a',
@@ -44,7 +44,7 @@ export default function RootLayout({
                 overflow: 'hidden',
                 position: 'relative',
               }}>
-                <Image src="/citytech-logo.png" alt="Citytech" fill style={{ objectFit: 'cover' }} />
+                <Image src="/citytech-logo.png" alt="Citytech" fill sizes="36px" style={{ objectFit: 'cover' }} />
               </div>
               <div>
                 <div style={{ fontSize: '16px', fontWeight: 700 }}>Citytech</div>

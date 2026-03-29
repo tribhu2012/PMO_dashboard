@@ -1,11 +1,15 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { FaChevronLeft, FaChevronRight, FaPlusCircle } from 'react-icons/fa';
 
 export default function Issues() {
   const [data, setData] = useState<any>(null);
   const [product, setProduct] = useState('all');
   const [showCreate, setShowCreate] = useState(true);
   const [form, setForm] = useState({ title: '', body: '', product_id: '', milestone_id: '', assignees: '', labels: '' });
+  const [createdPage, setCreatedPage] = useState(1);
+  const [resolvedPage, setResolvedPage] = useState(1);
+  const itemsPerPage = 5;
 
   useEffect(() => {
     fetch('/api/dashboard').then((res) => res.json()).then(setData);
@@ -63,12 +67,17 @@ export default function Issues() {
 
   const milestonesForProduct = data.milestones.filter((m: any) => !form.product_id || m.product_id === form.product_id);
 
+  const paginatedCreated = recentlyCreated.slice((createdPage - 1) * itemsPerPage, createdPage * itemsPerPage);
+  const paginatedResolved = recentlyResolved.slice((resolvedPage - 1) * itemsPerPage, resolvedPage * itemsPerPage);
+  const createdTotalPages = Math.ceil(recentlyCreated.length / itemsPerPage) || 1;
+  const resolvedTotalPages = Math.ceil(recentlyResolved.length / itemsPerPage) || 1;
+
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Issues</h1>
+    <div className="p-8 min-h-screen bg-gradient-to-b from-indigo-50 to-white">
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <h1 className="text-2xl font-bold text-indigo-900 tracking-tight">Issues</h1>
         <select
-          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs"
+          className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-indigo-900 shadow-sm focus:ring-2 focus:ring-indigo-400"
           value={product}
           onChange={(e) => setProduct(e.target.value)}
         >
@@ -79,64 +88,42 @@ export default function Issues() {
         </select>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <h2 className="text-sm font-semibold">Recently created (3 days)</h2>
-          {recentlyCreated.length === 0 ? (
-            <p className="mt-2 text-xs text-gray-500">No issues created in the last 3 days.</p>
-          ) : (
-            <ul className="mt-3 space-y-2 text-xs">
-              {recentlyCreated.slice(0, 10).map((issue: any) => (
-                <li key={issue.id} className="rounded-lg border border-gray-100 p-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">#{issue.github_number} {issue.title}</span>
-                    <span className="text-gray-400">{new Date(issue.created_at).toLocaleDateString()}</span>
-                  </div>
-                  <p className="text-gray-500">{issue.assignee || 'Unassigned'}</p>
-                </li>
-              ))}
-            </ul>
-          )}
+      <div className="grid gap-6 md:grid-cols-4 mb-8">
+        <div className="rounded-2xl border border-indigo-100 bg-white p-6 shadow-lg flex flex-col items-center">
+          <span className="text-3xl font-bold text-indigo-700">{active.length}</span>
+          <span className="text-sm text-indigo-900 font-semibold mt-1">Total Issues</span>
         </div>
-
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <h2 className="text-sm font-semibold">Recently resolved (3 days)</h2>
-          {recentlyResolved.length === 0 ? (
-            <p className="mt-2 text-xs text-gray-500">No issues resolved in the last 3 days.</p>
-          ) : (
-            <ul className="mt-3 space-y-2 text-xs">
-              {recentlyResolved.slice(0, 10).map((issue: any) => (
-                <li key={issue.id} className="rounded-lg border border-gray-100 p-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">#{issue.github_number} {issue.title}</span>
-                    <span className="text-gray-400">{new Date(issue.updated_at || issue.closed_at).toLocaleDateString()}</span>
-                  </div>
-                  <p className="text-gray-500">{issue.assignee || 'Unassigned'}</p>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div className="rounded-2xl border border-indigo-100 bg-white p-6 shadow-lg flex flex-col items-center">
+          <span className="text-3xl font-bold text-green-600">{recentlyCreated.length}</span>
+          <span className="text-sm text-indigo-900 font-semibold mt-1">Recently Created</span>
+        </div>
+        <div className="rounded-2xl border border-indigo-100 bg-white p-6 shadow-lg flex flex-col items-center">
+          <span className="text-3xl font-bold text-blue-600">{recentlyResolved.length}</span>
+          <span className="text-sm text-indigo-900 font-semibold mt-1">Recently Resolved</span>
+        </div>
+        <div className="rounded-2xl border border-indigo-100 bg-white p-6 shadow-lg flex flex-col items-center">
+          <span className="text-3xl font-bold text-orange-600">{active.filter((i: any) => i.status === 'open').length}</span>
+          <span className="text-sm text-indigo-900 font-semibold mt-1">Open Issues</span>
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">Create new issue</h2>
+      <div className="rounded-2xl border border-indigo-100 bg-white p-8 shadow-xl mb-10">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-indigo-900 flex items-center gap-2"><FaPlusCircle className="text-indigo-500" /> Create new issue</h2>
           <button
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs"
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 transition"
             onClick={() => setShowCreate((v) => !v)}
           >
             {showCreate ? 'Hide' : 'Show'}
           </button>
         </div>
-
         {showCreate && (
-          <div className="space-y-3">
-            <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="text-xs font-medium text-gray-600">Product</label>
+                <label className="text-sm font-semibold text-indigo-800">Product</label>
                 <select
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-indigo-900 shadow-sm focus:ring-2 focus:ring-indigo-400"
                   value={form.product_id}
                   onChange={(e) => setForm({ ...form, product_id: e.target.value, milestone_id: '' })}
                 >
@@ -146,11 +133,10 @@ export default function Issues() {
                   ))}
                 </select>
               </div>
-
               <div>
-                <label className="text-xs font-medium text-gray-600">Milestone</label>
+                <label className="text-sm font-semibold text-indigo-800">Milestone</label>
                 <select
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-indigo-900 shadow-sm focus:ring-2 focus:ring-indigo-400"
                   value={form.milestone_id}
                   onChange={(e) => setForm({ ...form, milestone_id: e.target.value })}
                 >
@@ -161,58 +147,54 @@ export default function Issues() {
                 </select>
               </div>
             </div>
-
             <div>
-              <label className="text-xs font-medium text-gray-600">Title</label>
+              <label className="text-sm font-semibold text-indigo-800">Title</label>
               <input
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-indigo-900 shadow-sm focus:ring-2 focus:ring-indigo-400"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 placeholder="Issue title"
               />
             </div>
-
             <div>
-              <label className="text-xs font-medium text-gray-600">Description</label>
+              <label className="text-sm font-semibold text-indigo-800">Description</label>
               <textarea
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-indigo-900 shadow-sm focus:ring-2 focus:ring-indigo-400"
                 rows={4}
                 value={form.body}
                 onChange={(e) => setForm({ ...form, body: e.target.value })}
                 placeholder="Describe the issue"
               />
             </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="text-xs font-medium text-gray-600">Assignees</label>
+                <label className="text-sm font-semibold text-indigo-800">Assignees</label>
                 <input
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-indigo-900 shadow-sm focus:ring-2 focus:ring-indigo-400"
                   value={form.assignees}
                   onChange={(e) => setForm({ ...form, assignees: e.target.value })}
                   placeholder="Comma-separated usernames"
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">Labels</label>
+                <label className="text-sm font-semibold text-indigo-800">Labels</label>
                 <input
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-indigo-900 shadow-sm focus:ring-2 focus:ring-indigo-400"
                   value={form.labels}
                   onChange={(e) => setForm({ ...form, labels: e.target.value })}
                   placeholder="Comma-separated labels"
                 />
               </div>
             </div>
-
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <button
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-xs text-white hover:bg-indigo-700"
+                className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-bold text-white hover:bg-indigo-700 transition"
                 onClick={submit}
               >
                 Create issue
               </button>
               <button
-                className="rounded-lg border border-gray-300 px-4 py-2 text-xs"
+                className="rounded-lg border border-gray-300 px-6 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 transition"
                 onClick={() => setShowCreate(false)}
               >
                 Cancel
@@ -220,6 +202,79 @@ export default function Issues() {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="grid gap-8 md:grid-cols-2">
+        <div className="rounded-2xl border border-indigo-100 bg-white p-8 shadow-lg flex flex-col">
+          <h2 className="text-lg font-bold text-indigo-900 mb-4">Recently created (3 days)</h2>
+          {paginatedCreated.length === 0 ? (
+            <p className="mt-2 text-base text-gray-600">No issues created in the last 3 days.</p>
+          ) : (
+            <ul className="space-y-3 text-base">
+              {paginatedCreated.map((issue: any) => (
+                <li key={issue.id} className="rounded-lg border border-gray-200 p-4 bg-indigo-50 flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-indigo-900">#{issue.github_number} {issue.title}</span>
+                    <span className="text-gray-500 text-xs">{new Date(issue.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <p className="text-indigo-800 text-xs">{issue.assignee || 'Unassigned'}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex justify-between items-center mt-6">
+            <button
+              onClick={() => setCreatedPage((prev) => Math.max(1, prev - 1))}
+              disabled={createdPage === 1}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium transition ${createdPage === 1 ? 'text-gray-300 bg-gray-100 cursor-not-allowed' : 'text-indigo-700 bg-white hover:bg-indigo-50'}`}
+            >
+              <FaChevronLeft /> Previous
+            </button>
+            <span className="text-sm text-indigo-900 font-semibold">Page {createdPage} of {createdTotalPages}</span>
+            <button
+              onClick={() => setCreatedPage((prev) => Math.min(createdTotalPages, prev + 1))}
+              disabled={createdPage === createdTotalPages}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium transition ${createdPage === createdTotalPages ? 'text-gray-300 bg-gray-100 cursor-not-allowed' : 'text-indigo-700 bg-white hover:bg-indigo-50'}`}
+            >
+              Next <FaChevronRight />
+            </button>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-indigo-100 bg-white p-8 shadow-lg flex flex-col">
+          <h2 className="text-lg font-bold text-indigo-900 mb-4">Recently resolved (3 days)</h2>
+          {paginatedResolved.length === 0 ? (
+            <p className="mt-2 text-base text-gray-600">No issues resolved in the last 3 days.</p>
+          ) : (
+            <ul className="space-y-3 text-base">
+              {paginatedResolved.map((issue: any) => (
+                <li key={issue.id} className="rounded-lg border border-gray-200 p-4 bg-blue-50 flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-indigo-900">#{issue.github_number} {issue.title}</span>
+                    <span className="text-gray-500 text-xs">{new Date(issue.updated_at || issue.closed_at).toLocaleDateString()}</span>
+                  </div>
+                  <p className="text-indigo-800 text-xs">{issue.assignee || 'Unassigned'}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex justify-between items-center mt-6">
+            <button
+              onClick={() => setResolvedPage((prev) => Math.max(1, prev - 1))}
+              disabled={resolvedPage === 1}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium transition ${resolvedPage === 1 ? 'text-gray-300 bg-gray-100 cursor-not-allowed' : 'text-indigo-700 bg-white hover:bg-indigo-50'}`}
+            >
+              <FaChevronLeft /> Previous
+            </button>
+            <span className="text-sm text-indigo-900 font-semibold">Page {resolvedPage} of {resolvedTotalPages}</span>
+            <button
+              onClick={() => setResolvedPage((prev) => Math.min(resolvedTotalPages, prev + 1))}
+              disabled={resolvedPage === resolvedTotalPages}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium transition ${resolvedPage === resolvedTotalPages ? 'text-gray-300 bg-gray-100 cursor-not-allowed' : 'text-indigo-700 bg-white hover:bg-indigo-50'}`}
+            >
+              Next <FaChevronRight />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -64,8 +64,9 @@ export async function POST() {
 
         // Link to milestone if issue has one
         let milestoneId = '';
-        if (issue.milestone) {
-          const linkedMilestone = milestones.find(m => m.github_id === String(issue.milestone.id));
+        const issueMilestoneId = issue.milestone?.id;
+        if (issueMilestoneId != null) {
+          const linkedMilestone = milestones.find(m => m.github_id === String(issueMilestoneId));
           milestoneId = linkedMilestone?.id || '';
         }
 

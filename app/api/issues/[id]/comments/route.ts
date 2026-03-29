@@ -49,5 +49,18 @@ export async function POST(
     body
   );
 
+  // Add notification for comment added
+  const now = new Date().toISOString();
+  const { appendRow } = await import('@/lib/sheets');
+  await appendRow('notifications', [
+    'comment_added',
+    `Comment Added`,
+    `A comment was added to issue "${issue.title}".
+Message: ${body}`,
+    now,
+    'false', // unread
+    issue.id // reference to issue id
+  ]);
+
   return NextResponse.json(comment);
 }
