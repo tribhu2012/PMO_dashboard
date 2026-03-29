@@ -13,7 +13,7 @@ export async function POST() {
   for (const product of products) {
     const repos = product.github_repos.split(',');
     for (const repo of repos) {
-      const ghMilestones = await getRepoMilestones(product.github_owner, repo.trim(), 'all');
+      const ghMilestones = await getRepoMilestones(product.github_owner, repo.trim(), 'ALL');
       
       for (const milestone of ghMilestones) {
         const existingMilestone = milestones.find((m: any) => m.github_id === String(milestone.id) && m.product_id === product.id);
@@ -58,18 +58,51 @@ export async function POST() {
   const updatedIssuesData: { range: string; values: any[][] }[] = [];
   const alertPromises: Promise<any>[] = [];
 
+  const processedGithubIds = new Set<string>();
   for (const product of products) {
     const repos = product.github_repos.split(',');
     for (const repo of repos) {
-      const ghIssues = await getRepoIssues(product.github_owner, repo.trim());
+      const ghIssues = await getRepoIssues(product.github_owner, repo.trim(), 'ALL');
 
       for (const issue of ghIssues) {
+        // Skip if already processed in this sync run or without milestone
+        if (!issue.milestone || processedGithubIds.has(String(issue.id))) continue;
+        processedGithubIds.add(String(issue.id));
+
         const existing = existingIssues.find((i: any) => i.github_id === String(issue.id));
         const status = issue.state === 'closed' ? 'closed' :
           issue.labels.some((l: any) => l.name === 'blocked') ? 'blocked' : 'open';
         const assignee = issue.assignee?.login || '';
         const labels = issue.labels.map((l: any) => l.name).join(',');
         const now = new Date().toISOString();
+
+        // Robust product mapping for shared repos:
+        // 1. If existing in sheet, preserve that product ID
+        // 2. If Project match (GitHub Projects V2)
+        // 3. Fallback: label match
+        // 4. Last fallback: loop product
+        let finalProductId = existing?.product_id;
+        
+        if (!finalProductId) {
+          const projectTitle = String(issue.project_title || '').trim().toLowerCase();
+          
+          const matchByProject = products.find(p => 
+            p.name.toLowerCase() === projectTitle ||
+            p.github_project_id === issue.project_id
+          );
+          
+          if (matchByProject) {
+            finalProductId = matchByProject.id;
+          } else {
+            const matchByLabel = products.find(p => 
+              issue.labels.some((l: any) => 
+                l.name.toLowerCase() === p.name.toLowerCase() ||
+                l.name.toLowerCase().includes(p.name.toLowerCase())
+              )
+            );
+            finalProductId = matchByLabel?.id || product.id;
+          }
+        }
 
         // Link to milestone if issue has one
         let milestoneId = '';
@@ -82,7 +115,7 @@ export async function POST() {
         const values = [
           existing?.id || `iss_${issue.id}`,
           milestoneId,
-          product.id,
+          finalProductId,
           String(issue.id),
           String(issue.number),
           issue.title,

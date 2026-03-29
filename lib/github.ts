@@ -56,15 +56,62 @@ export async function addComment(
   return data;
 }
 
-export async function getRepoIssues(owner: string, repo: string, state: 'open' | 'closed' | 'all' = 'all') {
-  const allIssues = await octokit.paginate(octokit.issues.listForRepo, {
-    owner,
-    repo,
-    state,
-    per_page: 100,
-  });
+export async function getRepoIssues(owner: string, repo: string, state: 'OPEN' | 'CLOSED' | 'ALL' = 'ALL') {
+  const query = `
+    query($owner:String!, $repo:String!, $state:[IssueState!]) {
+      repository(owner:$owner, name:$repo) {
+        issues(first:100, states:$state, orderBy:{field:UPDATED_AT, direction:DESC}) {
+          nodes {
+            id
+            number
+            title
+            state
+            createdAt
+            updatedAt
+            assignees(first:1) {
+              nodes { login }
+            }
+            labels(first:10) {
+              nodes { name }
+            }
+            milestone {
+              id
+              number
+              title
+              state
+              dueOn
+            }
+            projectItems(first:1) {
+              nodes {
+                project {
+                  id
+                  title
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
 
-  return allIssues.filter(i => !i.pull_request); // exclude PRs
+  const stateArg = state === 'ALL' ? ['OPEN', 'CLOSED'] : [state];
+  const response: any = await graphqlQuery(query, { owner, repo, state: stateArg });
+  
+  // Normalize to look like the rest of the application's issue objects
+  return response.repository.issues.nodes.map((issue: any) => ({
+    id: issue.id,
+    number: issue.number,
+    title: issue.title,
+    state: issue.state.toLowerCase(),
+    created_at: issue.createdAt,
+    updated_at: issue.updatedAt,
+    assignee: issue.assignees.nodes[0],
+    labels: issue.labels.nodes,
+    milestone: issue.milestone,
+    project_title: issue.projectItems.nodes[0]?.project.title || '',
+    project_id: issue.projectItems.nodes[0]?.project.id || '',
+  }));
 }
 
 export async function getRepoTags(owner: string, repo: string) {
@@ -93,7 +140,33 @@ export async function createMilestone(owner: string, repo: string, title: string
   return data;
 }
 
-export async function getRepoMilestones(owner: string, repo: string, state: 'open' | 'closed' | 'all' = 'open') {
-  const { data } = await octokit.issues.listMilestones({ owner, repo, state, per_page: 100 });
-  return data;
+export async function getRepoMilestones(owner: string, repo: string, state: 'OPEN' | 'CLOSED' | 'ALL' = 'OPEN') {
+  const query = `
+    query($owner:String!, $repo:String!, $state:[MilestoneState!]) {
+      repository(owner:$owner, name:$repo) {
+        milestones(first:100, states:$state, orderBy:{field:DUE_DATE, direction:DESC}) {
+          nodes {
+            id
+            number
+            title
+            state
+            description
+            dueOn
+          }
+        }
+      }
+    }
+  `;
+
+  const stateArg = state === 'ALL' ? ['OPEN', 'CLOSED'] : [state];
+  const response: any = await graphqlQuery(query, { owner, repo, state: stateArg });
+  
+  return response.repository.milestones.nodes.map((m: any) => ({
+    id: m.id,
+    number: m.number,
+    title: m.title,
+    state: m.state.toLowerCase(),
+    description: m.description,
+    due_on: m.dueOn,
+  }));
 }
