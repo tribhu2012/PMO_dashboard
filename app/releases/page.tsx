@@ -7,7 +7,7 @@ export default function Releases() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const [newRelease, setNewRelease] = useState({ product_id: '', title: '', due_date: '', description: '' });
+  const [newRelease, setNewRelease] = useState({ title: '', due_date: '', description: '' });
   const [creating, setCreating] = useState(false);
 
   const loadData = async () => {
@@ -21,10 +21,9 @@ export default function Releases() {
 
   const filteredMilestones = useMemo(() => {
     if (!data?.milestones) return [];
-    return product === 'all'
-      ? data.milestones
-      : data.milestones.filter((m: any) => m.product_id === product);
-  }, [data, product]);
+    // Milestones are not product-specific, always return all
+    return data.milestones;
+  }, [data]);
 
   const releaseStats = useMemo(() => {
     const milestones = filteredMilestones;
@@ -44,7 +43,7 @@ export default function Releases() {
   };
 
   const createRelease = async () => {
-    if (!newRelease.product_id || !newRelease.title) return;
+    if (!newRelease.title) return;
     setCreating(true);
 
     const res = await fetch('/api/releases/create', {
@@ -54,7 +53,7 @@ export default function Releases() {
     });
 
     if (res.ok) {
-      setNewRelease({ product_id: '', title: '', due_date: '', description: '' });
+      setNewRelease({ title: '', due_date: '', description: '' });
       await syncData();
     } else {
       let errorPayload;
@@ -167,17 +166,7 @@ export default function Releases() {
 
         <div className="p-6 rounded-2xl card mb-8 transition-all duration-200">
           <h2 className="text-sm font-semibold mb-2 text-slate-900">Create New Release</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <select
-              value={newRelease.product_id}
-              onChange={e => setNewRelease({ ...newRelease, product_id: e.target.value })}
-              className="input-primary rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="">Select product</option>
-              {data.products?.map((p: any) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <input
               value={newRelease.title}
               onChange={e => setNewRelease({ ...newRelease, title: e.target.value })}
@@ -192,7 +181,7 @@ export default function Releases() {
             />
             <button
               onClick={createRelease}
-              disabled={creating || !newRelease.product_id || !newRelease.title}
+              disabled={creating || !newRelease.title}
               className="rounded-lg bg-indigo-500 px-3 py-2 text-sm font-semibold text-white shadow hover:bg-indigo-400 disabled:opacity-60"
             >
               {creating ? 'Creating...' : 'Create Release'}
@@ -209,19 +198,6 @@ export default function Releases() {
 
         <div className="flex items-center justify-between mb-4">
           <div className="text-sm text-gray-600">Total releases: {filteredMilestones.length}</div>
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span>Product:</span>
-            <select
-              value={product}
-              onChange={e => setProduct(e.target.value)}
-              className="rounded-lg border border-gray-300 bg-white px-2 py-1"
-            >
-              <option value="all">All</option>
-              {data.products?.map((p: any) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </div>
         </div>
 
         {filteredMilestones.length === 0 ? (
@@ -252,9 +228,8 @@ export default function Releases() {
             ].map(section => section.data.length > 0 && (
               <div key={section.title}>
                 <h3 className="text-lg font-bold text-slate-800 mb-4">{section.title} <span className="text-sm font-normal text-slate-500 ml-2">({section.data.length})</span></h3>
-                <div className="grid gap-4">
+                <div className="grid gap-4" style={{ maxHeight: '600px', overflowY: 'auto', paddingRight: '8px' }}>
                   {section.data.map((m: any, idx: number) => {
-                    const prod = data.products?.find((p: any) => p.id === m.product_id);
                     const milestoneIssues = data.issues?.filter((i: any) => i.milestone_id === m.id) || [];
                     const statusMap: Record<string, number> = { open: 0, blocked: 0, closed: 0, 'in progress': 0 };
                     milestoneIssues.forEach((i: any) => {
@@ -267,12 +242,7 @@ export default function Releases() {
                       <div key={`${m.id}-${idx}`} className="rounded-xl card p-4 shadow-lg transition-transform duration-200 hover:-translate-y-1">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
-                            <div className="flex items-center gap-3">
-                              <span className="px-2 py-1 rounded-md text-xs font-medium" style={{ background: prod?.color + '33', color: prod?.color || '#1f2937' }}>
-                                {prod?.name || 'Unknown'}
-                              </span>
-                              <h2 className="text-base font-semibold text-slate-900">{m.name}</h2>
-                            </div>
+                            <h2 className="text-base font-semibold text-slate-900">{m.name}</h2>
                             <p className="mt-1 text-xs text-gray-500">Due: {m.due_date || 'Unscheduled'} | Status: {m.status || 'Active'}</p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -322,21 +292,30 @@ export default function Releases() {
                               <div className="rounded-md border border-dashed border-gray-300 p-3 text-xs text-gray-500">No issues attached to this release yet.</div>
                             ) : (
                               <div className="space-y-2">
-                                {milestoneIssues.map((issue: any) => (
-                                  <div key={issue.id} className="rounded-lg border border-gray-100 bg-slate-50 p-2">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="text-xs font-medium text-slate-900">#{issue.github_number} {issue.title}</span>
-                                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${issue.status === 'closed' ? 'bg-emerald-100 text-emerald-700' :
-                                          issue.status === 'blocked' ? 'bg-red-100 text-red-700' :
-                                            issue.status === 'open' ? 'bg-blue-100 text-blue-700' :
-                                              'bg-gray-100 text-gray-600'
-                                        }`}>
-                                        {issue.status}
-                                      </span>
-                                    </div>
-                                    <div className="text-[11px] text-gray-500">Assigned to: {issue.assignee || 'Unassigned'}</div>
-                                  </div>
-                                ))}
+                                {milestoneIssues.map((issue: any) => {
+                                  const githubUrl = `https://github.com/city-tech/PMO/issues/${issue.github_number}`;
+                                  return (
+                                    <a
+                                      key={issue.id}
+                                      href={githubUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="rounded-lg border border-gray-100 bg-slate-50 p-2 block hover:bg-slate-100 hover:border-gray-300 transition-colors"
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="text-xs font-medium"><span className="text-red-600">#{issue.github_number}</span> <span className="text-slate-900">{issue.title}</span></span>
+                                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${issue.status === 'closed' ? 'bg-emerald-100 text-emerald-700' :
+                                            issue.status === 'blocked' ? 'bg-red-100 text-red-700' :
+                                              issue.status === 'open' ? 'bg-blue-100 text-blue-700' :
+                                                'bg-gray-100 text-gray-600'
+                                          }`}>
+                                          {issue.status}
+                                        </span>
+                                      </div>
+                                      <div className="text-[11px] text-gray-500">Assigned to: {issue.assignee || 'Unassigned'}</div>
+                                    </a>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>

@@ -11,15 +11,37 @@ const auth = new google.auth.GoogleAuth({
 const sheets = google.sheets({ version: 'v4', auth });
 const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID!;
 
-export async function getSheet(tabName: string) {
+export async function getSheet(tabName: string, sheetId?: string) {
+  const spreadsheetId = sheetId || SPREADSHEET_ID;
   const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
+    spreadsheetId,
     range: tabName,
   });
   const [headers, ...rows] = res.data.values || [];
   return rows.map(row =>
     Object.fromEntries(headers.map((h: string, i: number) => [h, row[i] ?? '']))
   );
+}
+
+export async function getSheetRaw(tabName: string, sheetId?: string) {
+  const spreadsheetId = sheetId || SPREADSHEET_ID;
+  console.log('🔍 getSheetRaw called with:', { tabName, sheetId, spreadsheetId });
+  
+  // For sheet names with spaces, quote them: 'Sheet Name'!A:Z
+  const range = `'${tabName}'!A:Z`;
+  console.log('📍 Using range:', range);
+  
+  try {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    });
+    console.log('✅ getSheetRaw response received:', { rowsCount: res.data.values?.length });
+    return res.data.values || [];
+  } catch (error) {
+    console.error('❌ getSheetRaw error:', error);
+    throw error;
+  }
 }
 
 export async function appendRow(tabName: string, values: string[]) {

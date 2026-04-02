@@ -3,20 +3,25 @@ import { getSheet } from '@/lib/sheets';
 import { createMilestone } from '@/lib/github';
 
 export async function POST(req: NextRequest) {
-  const { product_id, title, description, due_date } = await req.json();
+  const { title, description, due_date } = await req.json();
 
-  if (!product_id || !title) {
-    return NextResponse.json({ error: 'product_id and title are required' }, { status: 400 });
+  if (!title) {
+    return NextResponse.json({ error: 'title is required' }, { status: 400 });
   }
 
+  // Get owner and repo from first product
   const products = await getSheet('products');
-  const product = products.find((p: any) => p.id === product_id);
-  if (!product) {
-    return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+  if (!products.length) {
+    return NextResponse.json({ error: 'No products configured' }, { status: 500 });
   }
 
-  const repo = product.github_repos.split(',')[0].trim();
+  const product = products[0];
   const owner = product.github_owner;
+  const repo = product.github_repos.split(',')[0].trim();
+
+  if (!owner || !repo) {
+    return NextResponse.json({ error: 'Product missing GitHub owner or repo configuration' }, { status: 500 });
+  }
 
   const milestone = await createMilestone(owner, repo, title, description, due_date);
 

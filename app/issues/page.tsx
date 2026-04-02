@@ -1,9 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { FaChevronLeft, FaChevronRight, FaPlusCircle } from 'react-icons/fa';
 
-export default function Issues() {
+function IssuesContent() {
   const [data, setData] = useState<any>(null);
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [product, setProduct] = useState('all');
   const [showCreate, setShowCreate] = useState(true);
   const [form, setForm] = useState({ title: '', body: '', product_id: '', milestone_id: '', assignees: '', labels: '' });
@@ -14,6 +18,17 @@ export default function Issues() {
   useEffect(() => {
     fetch('/api/dashboard').then((res) => res.json()).then(setData);
   }, []);
+
+  useEffect(() => {
+    const assignee = searchParams.get('assignee');
+    const shouldShowCreate = searchParams.get('showCreate') === 'true';
+    if (assignee) {
+      setForm((prev) => ({ ...prev, assignees: assignee }));
+    }
+    if (shouldShowCreate) {
+      setShowCreate(true);
+    }
+  }, [searchParams]);
 
   const refresh = () => fetch('/api/dashboard').then((res) => res.json()).then(setData);
 
@@ -88,6 +103,21 @@ export default function Issues() {
 
         {/* RIGHT SIDE — filter + refresh */}
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto' }}>
+          <button
+            onClick={() => router.push('/live-issues')}
+            style={{
+              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+              border: 'none',
+              borderRadius: '9px', color: 'white',
+              fontSize: '12px', fontWeight: 600,
+              padding: '7px 16px',
+              boxShadow: '0 4px 12px rgba(239,68,68,0.3)',
+              cursor: 'pointer'
+            }}
+          >
+            Live Issues
+          </button>
+
           <select
             className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm focus:ring-1 focus:ring-indigo-400"
             style={{
@@ -267,12 +297,12 @@ export default function Issues() {
                     <tr key={issue.id} className="transition-colors hover:bg-slate-50">
                       <td className="px-4 py-3 text-left">
                         <div className="flex items-center">
-                          <a href={issue.html_url || issue.url || `https://github.com/city-tech/PMO/issues/${issue.github_number}`} target="_blank" rel="noopener noreferrer" className="block max-w-[200px] lg:max-w-[260px] truncate font-semibold text-indigo-600 transition-all duration-500 hover:max-w-[600px] hover:text-indigo-800 hover:underline">
-                            #{issue.github_number} {issue.title}
+                          <a href={issue.html_url || issue.url || `https://github.com/city-tech/PMO/issues/${issue.github_number}`} target="_blank" rel="noopener noreferrer" className="block max-w-[200px] lg:max-w-[260px] truncate font-normal text-slate-700 transition-all duration-500 hover:max-w-[600px] hover:text-slate-900 hover:underline">
+                            <span className="text-red-600">#{issue.github_number}</span> {issue.title}
                           </a>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{issue.assignee || 'Unassigned'}</td>
+                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{issue.assignee ? issue.assignee.split(/[-_\s]/)[0].charAt(0).toUpperCase() + issue.assignee.split(/[-_\s]/)[0].slice(1) : 'Unassigned'}</td>
                       <td className="px-4 py-3 text-right text-slate-500 whitespace-nowrap">{new Date(issue.created_at).toLocaleDateString()}</td>
                     </tr>
                   ))}
@@ -319,12 +349,12 @@ export default function Issues() {
                     <tr key={issue.id} className="transition-colors hover:bg-slate-50">
                       <td className="px-4 py-3 text-left">
                         <div className="flex items-center">
-                          <a href={issue.html_url || issue.url || `https://github.com/city-tech/PMO/issues/${issue.github_number}`} target="_blank" rel="noopener noreferrer" className="block max-w-[200px] lg:max-w-[260px] truncate font-semibold text-indigo-600 transition-all duration-500 hover:max-w-[600px] hover:text-indigo-800 hover:underline">
-                            #{issue.github_number} {issue.title}
+                          <a href={issue.html_url || issue.url || `https://github.com/city-tech/PMO/issues/${issue.github_number}`} target="_blank" rel="noopener noreferrer" className="block max-w-[200px] lg:max-w-[260px] truncate font-normal text-slate-700 transition-all duration-500 hover:max-w-[600px] hover:text-slate-900 hover:underline">
+                            <span className="text-red-600">#{issue.github_number}</span> {issue.title}
                           </a>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{issue.assignee || 'Unassigned'}</td>
+                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{issue.assignee ? issue.assignee.split(/[-_\s]/)[0].charAt(0).toUpperCase() + issue.assignee.split(/[-_\s]/)[0].slice(1) : 'Unassigned'}</td>
                       <td className="px-4 py-3 text-right text-slate-500 whitespace-nowrap">{new Date(issue.updated_at || issue.closed_at).toLocaleDateString()}</td>
                     </tr>
                   ))}
@@ -353,5 +383,13 @@ export default function Issues() {
       </div>
     </div>
     </div>
+  );
+}
+
+export default function IssuesPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Loading...</div>}>
+      <IssuesContent />
+    </Suspense>
   );
 }

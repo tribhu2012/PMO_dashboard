@@ -42,6 +42,10 @@ const WARN = '#FFA502';
 export default function Dashboard() {
   const [data, setData] = useState<any>(null);
   const [product, setProduct] = useState('all');
+  const [assignee, setAssignee] = useState<string | null>(null);
+  const [showAdvancedAnalytics, setShowAdvancedAnalytics] = useState(false);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<'progress' | 'open'>('progress');
@@ -51,12 +55,52 @@ export default function Dashboard() {
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
+  const formatName = (str: string) => {
+    if (!str) return '';
+    const parts = str.split(/[-\s]+/).slice(0, 2).map((part: string) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase());
+    return parts.join(' ');
+  };
+
+  // Memoize the assignee mapping (github_username -> formatted name)
+  const assigneeMapping = useMemo(() => {
+    const mapping: Record<string, string> = {};
+    data?.workload?.forEach((m: any) => {
+      mapping[m.github_username] = formatName(m.name);
+    });
+    return mapping;
+  }, [data]);
+
   useEffect(() => {
     fetch('/api/dashboard').then(r => r.json()).then(d => {
       setData(d);
       setTimeout(() => setLoaded(true), 100);
     });
   }, []);
+
+  useEffect(() => {
+    if (showAdvancedAnalytics && assignee && assigneeMapping[assignee]) {
+      setAnalyticsLoading(true);
+      const formattedName = assigneeMapping[assignee];
+      console.log('🔍 Analytics fetching:', { showAdvancedAnalytics, assignee, formattedName, mapping: assigneeMapping });
+      fetch(`/api/analytics/advanced?assignee=${encodeURIComponent(formattedName)}`)
+        .then(r => {
+          console.log('📡 API response status:', r.status);
+          return r.json();
+        })
+        .then(d => {
+          console.log('📊 Analytics response:', d);
+          setAnalyticsData(d);
+          setAnalyticsLoading(false);
+        })
+        .catch(err => {
+          console.error('❌ Error fetching analytics:', err);
+          setAnalyticsLoading(false);
+        });
+    } else if (!showAdvancedAnalytics) {
+      console.log('👀 Advanced analytics hidden or no assignee');
+      setAnalyticsData(null);
+    }
+  }, [assignee, showAdvancedAnalytics, assigneeMapping]);
 
   const refresh = async () => {
     setSyncing(true);
@@ -305,6 +349,21 @@ export default function Dashboard() {
             {data.products?.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
 
+          {/* Developer filter */}
+          <select value={assignee || ''} onChange={e => setAssignee(e.target.value || null)} style={{
+            background: 'white', border: '1px solid #e2e8f0', borderRadius: '9px',
+            color: '#1e293b', fontSize: '12px', padding: '7px 12px', cursor: 'pointer',
+            fontWeight: 500,
+          }}>
+            <option value="">👤 Developer</option>
+            {(data?.workload || []).map((m: any) => {
+              const displayName = formatName(m.name || '');
+              return (
+                <option key={m.github_username} value={m.github_username}>{displayName}</option>
+              );
+            })}
+          </select>
+
           {/* Sync button */}
           <button className="btn" onClick={refresh} disabled={syncing} style={{
             background: syncing ? '#f1f5f9' : `linear-gradient(135deg, ${ACCENT}, #8B5CF6)`,
@@ -323,9 +382,12 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Assignee Selector Modal - Removed */}
+
       <div style={{ padding: '24px 28px', maxWidth: '1400px', margin: '0 auto' }}>
 
-        {/* ══ OVERVIEW TAB ══ */}
+        {!assignee ? (
+          <>
         {activeTab === 'overview' && (
           <>
             {/* Metric cards */}
@@ -791,7 +853,7 @@ export default function Dashboard() {
                         return (
                           <div key={issue.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', borderRadius: '8px', padding: '8px 10px', border: '1px solid #f1f5f9' }}>
                             <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: sColor, flexShrink: 0 }} />
-                            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '10px', color: '#94a3b8' }}>#{issue.github_number}</span>
+                            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '10px', color: '#dc2626' }}>#{issue.github_number}</span>
                             <span style={{ flex: 1, fontSize: '12px', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{issue.title}</span>
                             {rel && <span className="pill" style={{ background: ACCENT + '12', color: ACCENT, flexShrink: 0 }}>{rel.name}</span>}
                           </div>
@@ -807,10 +869,373 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+          </>
+        ) : (
+          <>
+            {/* ══ ASSIGNEE VIEW ══ */}
+            <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '20px', fontWeight: 700, color: '#1e293b', letterSpacing: '-0.03em' }}>{formatName(assignee || '')}</div>
+              <button className="btn" onClick={() => setShowAdvancedAnalytics(!showAdvancedAnalytics)} style={{
+                background: showAdvancedAnalytics ? `${ACCENT}15` : 'white',
+                border: `1px solid ${showAdvancedAnalytics ? ACCENT + '35' : '#e2e8f0'}`,
+                borderRadius: '9px', color: showAdvancedAnalytics ? ACCENT : '#1e293b',
+                fontSize: '12px', fontWeight: 600,
+                padding: '8px 16px', cursor: 'pointer', transition: 'all 0.2s',
+              }}>
+                {showAdvancedAnalytics ? '← Standard View' : 'Show Advanced Analytics'}
+              </button>
+            </div>
+
+            {!showAdvancedAnalytics ? (
+              <>
+                {assignee ? (() => {
+                  const member = data?.workload?.find((m: any) => m.github_username === assignee);
+                  const memberIssues = data?.issues?.filter((i: any) => i.assignee === assignee && i.status !== 'closed') || [];
+                  const memberClosedIssues = data?.issues?.filter((i: any) => i.assignee === assignee && i.status === 'closed') || [];
+                  const memberBlockedIssues = memberIssues.filter((i: any) => i.status === 'blocked');
+                  const assigneeLoad = Math.min(100, Math.round((memberIssues.length / 5) * 100));
+                  
+                  console.log('Standard view - Assignee:', assignee);
+                  console.log('Member found:', member);
+                  console.log('Member issues:', memberIssues);
+                  console.log('Member closed issues:', memberClosedIssues);
+                  
+                  const issuesByProduct: any = {};
+                  memberIssues.forEach((issue: any) => {
+                    const p = data?.products?.find((p: any) => p.id === issue.product_id);
+                    const pname = p?.name || 'Unknown';
+                    issuesByProduct[pname] = (issuesByProduct[pname] || 0) + 1;
+                  });
+
+                  const issuesByStatus: any = { open: 0, blocked: 0 };
+                  memberIssues.forEach((i: any) => {
+                    if (i.status === 'blocked') issuesByStatus.blocked += 1;
+                    else issuesByStatus.open += 1;
+                  });
+
+                  return (
+                    <>
+                      {/* Assignee Metrics */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
+                        {[
+                          { label: 'Open Issues', value: memberIssues.length, color: ACCENT, bg: `${ACCENT}08` },
+                          { label: 'Closed Issues', value: memberClosedIssues.length, color: ACCENT2, bg: `${ACCENT2}08` },
+                          { label: 'Blocked Issues', value: memberBlockedIssues.length, color: DANGER, bg: `${DANGER}08` },
+                          { label: 'Workload', value: assigneeLoad, suffix: '%', color: ACCENT, bg: `${ACCENT}08` },
+                        ].map((m) => (
+                          <div key={m.label} className="card" style={{ padding: '18px 20px' }}>
+                            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              {m.label}
+                            </div>
+                            <div style={{ fontSize: '32px', fontWeight: 700, color: m.color, letterSpacing: '-0.03em' }}>
+                              {m.value}{(m as any).suffix || ''}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Two column layout */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+                        {/* Issues List */}
+                        <div className="card" style={{ padding: '22px' }}>
+                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b', marginBottom: '16px' }}>Active Issues</div>
+                          {memberIssues.length === 0 ? (
+                            <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '24px' }}>
+                              No active issues
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '400px', overflowY: 'auto' }}>
+                              {memberIssues.map((issue: any) => {
+                                const product = data.products?.find((p: any) => p.id === issue.product_id);
+                                const statusColor = issue.status === 'blocked' ? DANGER : WARN;
+                                return (
+                                  <div key={issue.id} className="card" style={{ padding: '12px', background: '#f8fafc', border: '1px solid #f1f5f9' }}>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: statusColor, marginTop: '6px', flexShrink: 0 }} />
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: '12px', fontWeight: 600 }}><span style={{ color: '#dc2626' }}>#{issue.github_number}</span> <span style={{ color: '#1e293b' }}>{issue.title}</span></div>
+                                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>{product?.name || 'Unknown'}</div>
+                                      </div>
+                                      <span style={{ fontSize: '10px', background: statusColor + '15', color: statusColor, padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                        {issue.status}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Issues by Product */}
+                        <div className="card" style={{ padding: '22px' }}>
+                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b', marginBottom: '16px' }}>Issues by Product</div>
+                          {Object.keys(issuesByProduct).length === 0 ? (
+                            <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '24px' }}>
+                              No issues assigned
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                              {Object.entries(issuesByProduct).map(([pname, count]: [string, any]) => (
+                                <div key={pname}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                    <span style={{ fontSize: '13px', color: '#475569', fontWeight: 500 }}>{pname}</span>
+                                    <span style={{ fontSize: '13px', fontWeight: 700, color: ACCENT }}>{count}</span>
+                                  </div>
+                                  <div className="progress-track" style={{ height: '4px' }}>
+                                    <div className="progress-fill" style={{ width: `${(count / memberIssues.length) * 100}%`, background: ACCENT }} />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Workload Progress */}
+                      <div className="card" style={{ padding: '22px' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b', marginBottom: '14px' }}>Current Workload</div>
+                        <div className="progress-track" style={{ height: '12px', marginBottom: '12px' }}>
+                          <div className="progress-fill" style={{ width: `${assigneeLoad}%`, background: assigneeLoad >= 80 ? `linear-gradient(90deg, ${DANGER}, ${WARN})` : ACCENT }} />
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '13px', color: '#64748b' }}>Capacity: {assigneeLoad}% ({memberIssues.length}/5 issues)</span>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: assigneeLoad >= 80 ? DANGER : ACCENT }}>
+                            {assigneeLoad >= 80 ? 'Overloaded' : assigneeLoad >= 60 ? 'Healthy' : 'Available'}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })() : (
+                  <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 20px', fontSize: '14px' }}>
+                    Select a developer from the dropdown to view their work
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {/* ADVANCED ANALYTICS VIEW */}
+                <div style={{ marginTop: '20px' }}>
+                  {analyticsLoading ? (
+                    <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 20px' }}>
+                      Loading analytics data...
+                    </div>
+                  ) : analyticsData?.error ? (
+                    <div style={{ textAlign: 'center', color: DANGER, padding: '40px 20px', fontSize: '13px' }}>
+                      <div style={{ fontWeight: 600, marginBottom: '8px' }}>Error loading analytics:</div>
+                      <div>{analyticsData.error}</div>
+                      {analyticsData.details && <div style={{ fontSize: '11px', marginTop: '8px', color: '#94a3b8' }}>{analyticsData.details}</div>}
+                      {analyticsData.availableAssignees && (
+                        <div style={{ fontSize: '11px', marginTop: '12px', color: '#94a3b8' }}>
+                          Available assignees: {analyticsData.availableAssignees.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  ) : analyticsData?.metrics && analyticsData?.metrics?.efficiency !== undefined ? (() => {
+                    // Calculate Live Issues count
+                    const liveIssuesCount = data?.issues?.filter((i: any) => 
+                      i.assignee === assignee && i.issue_type === 'Live'
+                    ).length || 0;
+
+                    return (
+                    <>
+                      {/* PRIMARY METRICS */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '20px' }}>
+                        {[
+                          { label: 'Total Issues', value: analyticsData.metrics?.totalIssues || 0, color: ACCENT, bg: `${ACCENT}08` },
+                          { label: 'Efficiency Score', value: analyticsData.metrics?.efficiency || 0, suffix: '%', color: ACCENT2, bg: `${ACCENT2}08` },
+                          { label: 'Live Issues', value: liveIssuesCount, color: WARN, bg: `${WARN}08` },
+                          { label: 'DPI (Developer Performance Index)', value: analyticsData.metrics?.dpi || 0, color: '#FF6B9D', bg: '#FF6B9D08' },
+                          { label: 'Productivity Score', value: analyticsData.metrics?.productivityScore || 0, suffix: '%', color: '#8B5CF6', bg: '#8B5CF608' },
+                        ].map((m) => (
+                          <div key={m.label} className="card" style={{ padding: '18px 20px' }}>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '8px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              {m.label}
+                            </div>
+                            <div style={{ fontSize: '28px', fontWeight: 700, color: m.color, letterSpacing: '-0.03em' }}>
+                              <AnimatedNumber value={m.value} suffix={m.suffix || ''} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* SECONDARY METRICS */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
+                        {[
+                          { label: 'Total S Equivalent', value: analyticsData.metrics?.totalSEquivalent || 0, hint: 'S + M×2 + L×4 + XL×8', color: '#6B7280' },
+                          { label: 'Avg Ticket Size', value: analyticsData.metrics?.avgTicketSize || 0, hint: 'S points per ticket', color: '#6B7280' },
+                          { label: 'Hours per Ticket', value: analyticsData.metrics?.hoursPerTicket || 0, hint: 'Average hours spent', color: '#6B7280' },
+                          { label: 'Total Hours', value: analyticsData.metrics?.totalHours || 0, suffix: 'h', hint: 'Time invested', color: '#6B7280' },
+                        ].map((m) => (
+                          <div key={m.label} style={{ background: '#f8fafc', borderRadius: '8px', padding: '12px', borderLeft: `3px solid ${m.color}` }}>
+                            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500, marginBottom: '6px' }}>{m.label}</div>
+                            <div style={{ fontSize: '20px', fontWeight: 700, color: '#1e293b', marginBottom: '4px' }}>
+                              <AnimatedNumber value={m.value} suffix={m.suffix || ''} />
+                            </div>
+                            <div style={{ fontSize: '10px', color: '#cbd5e1' }}>{m.hint}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* CHARTS ROW 1 */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+                        {/* Size Distribution Pie Chart */}
+                        <div className="card" style={{ padding: '22px' }}>
+                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b', marginBottom: '16px' }}>Ticket Size Distribution</div>
+                          <div style={{ position: 'relative', height: '200px' }}>
+                            {analyticsData.sizeDistribution && analyticsData.sizeDistribution.data.some((v: number) => v > 0) ? (
+                              <Pie
+                                data={{
+                                  labels: analyticsData.sizeDistribution.labels,
+                                  datasets: [
+                                    {
+                                      label: 'Count',
+                                      data: analyticsData.sizeDistribution.data,
+                                      backgroundColor: ['#6C63FF', '#00D4AA', '#FFA502', '#FF4757'],
+                                      borderColor: '#fff',
+                                      borderWidth: 2
+                                    }
+                                  ]
+                                }}
+                                options={{
+                                  responsive: true,
+                                  maintainAspectRatio: false,
+                                  plugins: { legend: { display: true, position: 'bottom' } }
+                                }}
+                              />
+                            ) : (
+                              <div style={{ textAlign: 'center', color: '#94a3b8', paddingTop: '80px' }}>No data</div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Weekly Performance Trend */}
+                        <div className="card" style={{ padding: '22px' }}>
+                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b', marginBottom: '16px' }}>Weekly Performance Trend</div>
+                          <div style={{ position: 'relative', height: '200px' }}>
+                            {analyticsData.weeklyTrend && analyticsData.weeklyTrend.length > 0 ? (
+                              <Line
+                                data={{
+                                  labels: analyticsData.weeklyTrend.map((w: any) => w.week),
+                                  datasets: [
+                                    {
+                                      label: 'Efficiency %',
+                                      data: analyticsData.weeklyTrend.map((w: any) => w.efficiency),
+                                      borderColor: ACCENT2,
+                                      backgroundColor: `${ACCENT2}20`,
+                                      tension: 0.4,
+                                      fill: true,
+                                      borderWidth: 2
+                                    },
+                                    {
+                                      label: 'DPI',
+                                      data: analyticsData.weeklyTrend.map((w: any) => w.dpi),
+                                      borderColor: ACCENT,
+                                      backgroundColor: `${ACCENT}20`,
+                                      tension: 0.4,
+                                      fill: false,
+                                      borderWidth: 2
+                                    }
+                                  ]
+                                }}
+                                options={{
+                                  responsive: true,
+                                  maintainAspectRatio: false,
+                                  plugins: { legend: { display: true, position: 'top' } },
+                                  scales: { y: { beginAtZero: true } }
+                                }}
+                              />
+                            ) : (
+                              <div style={{ textAlign: 'center', color: '#94a3b8', paddingTop: '80px' }}>No data</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* CHARTS ROW 2 */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+                        {/* Productivity Trend */}
+                        <div className="card" style={{ padding: '22px' }}>
+                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b', marginBottom: '16px' }}>Productivity Trend (S per Hour)</div>
+                          <div style={{ position: 'relative', height: '200px' }}>
+                            {analyticsData.weeklyTrend && analyticsData.weeklyTrend.length > 0 ? (
+                              <Line
+                                data={{
+                                  labels: analyticsData.weeklyTrend.map((w: any) => w.week),
+                                  datasets: [
+                                    {
+                                      label: 'Productivity',
+                                      data: analyticsData.weeklyTrend.map((w: any) => w.productivity),
+                                      borderColor: '#8B5CF6',
+                                      backgroundColor: '#8B5CF620',
+                                      tension: 0.4,
+                                      fill: true,
+                                      borderWidth: 2,
+                                      pointRadius: 5,
+                                      pointBackgroundColor: '#8B5CF6'
+                                    }
+                                  ]
+                                }}
+                                options={{
+                                  responsive: true,
+                                  maintainAspectRatio: false,
+                                  plugins: { legend: { display: false } },
+                                  scales: { y: { beginAtZero: true } }
+                                }}
+                              />
+                            ) : (
+                              <div style={{ textAlign: 'center', color: '#94a3b8', paddingTop: '80px' }}>No data</div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Formula Reference Card */}
+                        <div className="card" style={{ padding: '22px' }}>
+                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b', marginBottom: '14px' }}>📐 Calculation Formulas</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '11px', lineHeight: '1.5' }}>
+                            {analyticsData.formulas && (
+                              <>
+                                <div style={{ borderLeft: `2px solid ${ACCENT}`, paddingLeft: '10px' }}>
+                                  <strong>Efficiency</strong><br />
+                                  {analyticsData.formulas.efficiency}
+                                </div>
+                                <div style={{ borderLeft: `2px solid ${ACCENT2}`, paddingLeft: '10px' }}>
+                                  <strong>Productivity Score</strong><br />
+                                  {analyticsData.formulas.productivityScore}
+                                </div>
+                                <div style={{ borderLeft: `2px solid #FF6B9D`, paddingLeft: '10px' }}>
+                                  <strong>DPI</strong><br />
+                                  {analyticsData.formulas.dpi}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                    );
+                  })() : analyticsData?.error ? (
+                    <div style={{ textAlign: 'center', color: DANGER, padding: '40px 20px', fontSize: '13px' }}>
+                      <div style={{ fontWeight: 600, marginBottom: '8px' }}>Error loading analytics:</div>
+                      <div>{analyticsData.error}</div>
+                      {analyticsData.details && <div style={{ fontSize: '11px', marginTop: '8px', color: '#94a3b8' }}>{analyticsData.details}</div>}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 20px' }}>
+                      No analytics data available for this developer
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+              </>
+            )}
       </div>
     </div>
   );
 }
+
 
 function EmptyState({ text }: { text: string }) {
   return (

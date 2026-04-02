@@ -56,6 +56,7 @@ export default function Workload() {
 
     return Object.values(map).map((member: any) => ({
       ...member,
+      role: 'Developer',
       open_issues: member.open_issues ?? 0,
       load_pct: Math.min(100, Math.round(((member.open_issues ?? 0) / 5) * 100)),
     }));
@@ -172,7 +173,7 @@ export default function Workload() {
           <div className="mt-1 text-2xl font-semibold text-emerald-700">{summary.healthy}</div>
         </div>
         <div className="rounded-xl bg-white p-4 shadow-sm">
-          <div className="text-xs uppercase tracking-wide text-slate-500">Average load %</div>
+          <div className="text-xs uppercase tracking-wide text-slate-500">Average load</div>
           <div className="mt-1 text-2xl font-semibold text-indigo-700">{summary.avgLoad}%</div>
         </div>
       </div>
@@ -184,7 +185,7 @@ export default function Workload() {
               <th className="px-4 py-3 text-left">Assignee</th>
               <th className="px-4 py-3 text-left">Role</th>
               <th className="px-4 py-3 text-center">Open Issues</th>
-              <th className="px-4 py-3 text-center">Load %</th>
+              <th className="px-4 py-3 text-center">Load</th>
               <th className="px-4 py-3 text-center">Status</th>
             </tr>
           </thead>
@@ -252,19 +253,30 @@ export default function Workload() {
                           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                             <div className="mb-2 flex items-center justify-between">
                               <p className="text-sm font-semibold text-slate-800">Details for {m.name}</p>
-                              <button
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  router.push('/workload');
-                                }}
-                                className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200"
-                              >
-                                Collapse
-                              </button>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    router.push(`/issues?assignee=${encodeURIComponent(m.github_username)}&showCreate=true`);
+                                  }}
+                                  className="rounded-md bg-indigo-500 px-2 py-1 text-xs font-semibold text-white hover:bg-indigo-600"
+                                >
+                                  Create Issue
+                                </button>
+                                <button
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    router.push('/workload');
+                                  }}
+                                  className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                                >
+                                  Collapse
+                                </button>
+                              </div>
                             </div>
                             <div className="grid gap-2 sm:grid-cols-3">
                               <div className="rounded-md bg-white p-2 text-xs text-slate-700 border border-slate-200">Open Issues: {m.open_issues ?? 0}</div>
-                              <div className="rounded-md bg-white p-2 text-xs text-slate-700 border border-slate-200">Load %: {m.load_pct}%</div>
+                              <div className="rounded-md bg-white p-2 text-xs text-slate-700 border border-slate-200">Load: {m.load_pct}%</div>
                               <div className="rounded-md bg-white p-2 text-xs text-slate-700 border border-slate-200">Status: {statusLabel}</div>
                             </div>
                             <div className="mt-3 space-y-2">
@@ -273,10 +285,17 @@ export default function Workload() {
                               ) : (
                                 memberIssues.map((issue: any) => {
                                   const milestone = data.milestones.find((ms: any) => ms.id === issue.milestone_id);
+                                  const githubUrl = `https://github.com/city-tech/PMO/issues/${issue.github_number}`;
                                   return (
-                                    <div key={issue.id} className="rounded-md bg-white p-2 border border-slate-200">
+                                    <a
+                                      key={issue.id}
+                                      href={githubUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="rounded-md bg-white p-2 border border-slate-200 block hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                                    >
                                       <div className="flex items-center justify-between gap-2 text-xs">
-                                        <span className="font-mono text-slate-500">#{issue.github_number}</span>
+                                        <span className="font-mono text-red-600">#{issue.github_number}</span>
                                         <span className={`rounded-full px-2 py-0.5 ${
                                           issue.status === 'closed'
                                             ? 'bg-emerald-100 text-emerald-700'
@@ -287,7 +306,7 @@ export default function Workload() {
                                       </div>
                                       <p className="text-xs text-slate-700">{issue.title}</p>
                                       {milestone && <p className="text-xs text-indigo-600">Milestone: {milestone.name}</p>}
-                                    </div>
+                                    </a>
                                   );
                                 })
                               )}

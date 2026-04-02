@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const ms = allMilestones.find((m: any) => m.id === milestone_id || String(m.id) === String(milestone_id));
     if (ms && ms.github_id) {
       // Fetch all milestones from GitHub and match by id
-      const ghMilestones = await getRepoMilestones(product.github_owner, repo, 'open');
+      const ghMilestones = await getRepoMilestones(product.github_owner, repo, 'OPEN');
       const ghMs = ghMilestones.find((g: any) => String(g.id) === String(ms.github_id));
       if (ghMs) {
         milestoneNumber = ghMs.number;
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     id, milestone_id, product_id,
     String(ghIssue.id), String(ghIssue.number),
     title, 'open', assignees[0] || '', labels.join(','),
-    now, now
+    now, now, '' // issue_type - will be set via GitHub project custom field
   ]);
 
   // Add notification for issue creation
